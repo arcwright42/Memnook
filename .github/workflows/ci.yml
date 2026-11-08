@@ -1,0 +1,48 @@
+name: checks
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.12", "3.13"]
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg18-bookworm
+        env:
+          POSTGRES_USER: memory
+          POSTGRES_PASSWORD: memory
+          POSTGRES_DB: memory_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U memory -d memory_test"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      MEMORY_TEST_DATABASE_URL: postgresql+psycopg://memory:memory@localhost:5432/memory_test
+      UV_PYTHON: ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.7"
+          python-version: ${{ matrix.python }}
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run lint-imports
+      - run: uv run deptry src
+      - run: uv run pytest -q
+      - run: uv build
+      - name: Check installed wheel and bundled migrations
+        run: |
+          uv venv work/wheel-smoke
+          uv pip install --python work/wheel-smoke/bin/python dist/*.whl
+          work/wheel-smoke/bin/memory --help
+          work/wheel-smoke/bin/python -I -c "from pathlib import Path; from memory_mcp.interfaces.cli import migration_config; assert (Path(migration_config().get_main_option('script_location')) / 'versions' / '0001_initial.py').is_file()"
+          MEMORY_DATABASE_URL="$MEMORY_TEST_DATABASE_URL" work/wheel-smoke/bin/memory migrate
