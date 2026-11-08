@@ -1,0 +1,81 @@
+[project]
+name = "memory-mcp"
+version = "0.1.0"
+description = "Shared, tag-isolated memory for MCP clients"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "mcp>=2,<3",
+  "pydantic>=2.12,<3",
+  "pydantic-settings>=2.10,<3",
+  "sqlalchemy[asyncio]>=2.0,<3",
+  "alembic>=1.16,<2",
+  "psycopg[binary]>=3.2,<4",
+  "pgvector>=0.4,<1",
+  "httpx>=0.28,<1",
+  "uvicorn>=0.35,<1",
+  "starlette>=0.48,<1",
+  "jieba>=0.42.1,<1",
+  "setuptools>=80,<81",
+]
+
+[project.scripts]
+memory = "memory_mcp.interfaces.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.12,<1",
+  "import-linter>=2,<3", "deptry>=0.23,<1",
+]
+
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/memory_mcp"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"migrations" = "memory_mcp/migrations"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src", "migrations", "tests", "docs", "pyproject.toml", "uv.lock",
+  "README.md", "CONTRIBUTING.md", "alembic.ini", ".env.example", "Dockerfile", "compose.yaml",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = ["integration: requires a disposable PostgreSQL database with pgvector"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["work", "outputs", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+ignore = ["E501"]
+
+[tool.importlinter]
+root_package = "memory_mcp"
+
+[[tool.importlinter.contracts]]
+name = "Package dependency direction"
+type = "layers"
+layers = [
+  "memory_mcp.interfaces",
+  "memory_mcp.application",
+  "memory_mcp.storage | memory_mcp.providers",
+  "memory_mcp.domain",
+  "memory_mcp.config",
+]
+
+[tool.deptry]
+known_first_party = ["memory_mcp"]
+
+[tool.deptry.per_rule_ignores]
+# Runtime dependencies used by drivers, the tokenizer, and the server runner.
+DEP002 = ["psycopg", "setuptools"]
